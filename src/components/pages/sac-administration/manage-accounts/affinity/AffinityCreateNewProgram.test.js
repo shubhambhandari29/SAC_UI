@@ -1,0 +1,163 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import AffinityCreateNewProgram from './AffinityCreateNewProgram';
+import api from '../../../../../api/api';
+import Swal from 'sweetalert2';
+import useDropdownData from '../../../../../hooks/useDropdownData';
+import { useSelector } from 'react-redux';
+
+const mockNavigate = jest.fn();
+let mockLocation = {
+  pathname: '/affinity-view-program/ProgramName=ABC',
+  state: { from: '/pending-items' },
+};
+let mockParams = { column_name: 'ProgramName=ABC' };
+
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useLocation: () => mockLocation,
+    useParams: () => mockParams,
+  };
+});
+
+jest.mock('react-redux', () => ({
+  useSelector: jest.fn(),
+}));
+
+jest.mock('../../../../../api/api', () => ({
+  __esModule: true,
+  default: {
+    get: jest.fn(),
+    post: jest.fn(),
+  },
+}));
+
+jest.mock('../../../../../hooks/useDropdownData', () => jest.fn());
+
+jest.mock('../../../../ui/Loader', () => () => <div data-testid="loader" />);
+
+jest.mock('../../../../ui/TabPanel', () => ({ children, value, index }) =>
+  value === index ? <div>{children}</div> : null,
+);
+
+jest.mock('../../../../ui/Modal', () => ({ open, children }) =>
+  open ? <div data-testid="modal">{children}</div> : null,
+);
+
+jest.mock('./ProgramGeneral', () => () => <div>Program General Content</div>);
+jest.mock('../Notes', () => ({ label }) => <div>{label}</div>);
+jest.mock('../Shi', () => () => <div>SHI Content</div>);
+jest.mock('../LossRunScheduling', () => () => <div>Loss Run Scheduling Content</div>);
+jest.mock('../ClaimReviewScheduling', () => () => <div>Claim Review Scheduling Content</div>);
+jest.mock('../view-policy-types/ViewPolicyTypes', () => () => (
+  <div>ViewPolicyTypesContent</div>
+));
+jest.mock('../../../../ui/CurrencyField', () => () => <input aria-label="Total Premium" />);
+
+jest.mock('@mui/x-date-pickers/LocalizationProvider', () => ({
+  LocalizationProvider: ({ children }) => <>{children}</>,
+}));
+
+jest.mock('@mui/x-date-pickers/DatePicker', () => ({
+  DatePicker: ({ label }) => <div>{label}</div>,
+}));
+
+jest.mock('sweetalert2', () => ({
+  __esModule: true,
+  default: {
+    fire: jest.fn(),
+    DismissReason: { cancel: 'cancel' },
+  },
+}));
+
+const mainProgramResponse = {
+  status: 200,
+  data: [
+    {
+      ProgramName: 'ABC',
+      AcctStatus: 'Active',
+      DtCreated: '2025-01-01',
+      DateNotif: null,
+      OnBoardDt: null,
+      TermDate: null,
+    },
+  ],
+};
+
+describe('AffinityCreateNewProgram', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    mockLocation = {
+      pathname: '/affinity-view-program/ProgramName=ABC',
+      state: { from: '/pending-items' },
+    };
+    mockParams = { column_name: 'ProgramName=ABC' };
+
+    useSelector.mockImplementation((selector) =>
+      selector({ auth: { user: { role: 'Admin' } } }),
+    );
+
+    useDropdownData.mockReturnValue({ data: [], loading: false });
+
+    api.get.mockImplementation((url) => {
+      if (url === '/affinity_program/') return Promise.resolve(mainProgramResponse);
+      if (url === '/loss_run_frequency_affinity/')
+        return Promise.resolve({ status: 200, data: [] });
+      if (url === '/claim_review_frequency_affinity/')
+        return Promise.resolve({ status: 200, data: [] });
+      return Promise.resolve({ status: 200, data: [] });
+    });
+
+    Swal.fire.mockResolvedValue({ isConfirmed: true });
+  });
+
+  it('fetches existing program data when a route param is present', async () => {
+    render(<AffinityCreateNewProgram />);
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/affinity_program/', {
+        params: { ProgramName: 'ABC' },
+      });
+    });
+
+    expect(api.get).toHaveBeenCalledWith('/loss_run_frequency_affinity/', {
+      params: { ProgramName: 'ABC' },
+    });
+
+    expect(api.get).toHaveBeenCalledWith('/claim_review_frequency_affinity/', {
+      params: { ProgramName: 'ABC' },
+    });
+  });
+
+  it('navigates back to pending items after confirmation', async () => {
+    mockLocation = { pathname: '/affinity-create-new-program', state: undefined };
+    mockParams = {};
+
+    render(<AffinityCreateNewProgram />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/pending-items', {
+        replace: true,
+      });
+    });
+  });
+
+  it('opens policy types modal when arriving from a policy route', async () => {
+    mockLocation = {
+      pathname: '/affinity-view-program/ProgramName=ABC',
+      state: { from: '/view-policy/PK_Number=101' },
+    };
+
+    render(<AffinityCreateNewProgram />);
+
+    await waitFor(() => {
+      expect(screen.getByText('ViewPolicyTypesContent')).toBeInTheDocument();
+    });
+  });
+});
