@@ -1,0 +1,28 @@
+.swal2-container {
+  z-index: 2000 !important; /* higher than MUI drawers/app bars */
+}
+
+.swal-confirm-button {
+  background: linear-gradient(
+    90deg,
+    hsla(303, 77%, 22%, 1) 0%,
+    hsla(321, 55%, 50%, 1) 100%
+  );
+  color: white;
+  border: none;
+  width: 60px;
+  height: 45px;
+  border-radius: 25px;
+  cursor: pointer;
+}
+
+.swal-cancel-button {
+  margin-left: 10px;
+  background-color: #ebf0f8;
+  color: "#640D5F";
+  border: 1px solid #640d5f;
+  width: 60px;
+  height: 45px;
+  border-radius: 25px;
+  cursor: pointer;
+}
