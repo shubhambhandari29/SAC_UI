@@ -28,7 +28,7 @@ jest.mock('@react-pdf/renderer', () => {
       React.createElement('img', { ...rest, style: normalizeStyle(style) }),
     StyleSheet: { create: (styles) => styles },
   };
-});
+}, { virtual: true });
 
 describe('ContactInfoList', () => {
   it('renders nothing when data is missing', () => {

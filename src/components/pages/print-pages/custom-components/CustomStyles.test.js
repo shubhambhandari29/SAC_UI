@@ -1,9 +1,13 @@
 import { styles } from './CustomStyles';
 import theme from '../../../../theme';
 
-jest.mock('@react-pdf/renderer', () => ({
-  StyleSheet: { create: (value) => value },
-}));
+jest.mock(
+  '@react-pdf/renderer',
+  () => ({
+    StyleSheet: { create: (value) => value },
+  }),
+  { virtual: true },
+);
 
 describe('CustomStyles', () => {
   it('exports core layout style keys', () => {

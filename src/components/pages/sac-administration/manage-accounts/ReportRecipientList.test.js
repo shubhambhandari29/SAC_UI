@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Controller } from 'react-hook-form';
 import ReportRecipientList from './ReportRecipientList';
@@ -202,5 +202,126 @@ describe('ReportRecipientList', () => {
         },
       ]);
     });
+  });
+
+  it('shows fetch error alert when recipient loading fails', async () => {
+    api.get.mockRejectedValue(new Error('load failed'));
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(Swal.fire).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Error',
+          icon: 'error',
+        }),
+      );
+    });
+  });
+
+  it('exits edit mode without save API call when data is unchanged', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('upserts recipients when edited without deletions', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const attnInput = await screen.findByDisplayValue('John Doe');
+    await userEvent.clear(attnInput);
+    await userEvent.type(attnInput, 'Jane Doe');
+    fireEvent.keyDown(attnInput, { key: 'A' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/loss_run_distribution/upsert',
+        expect.arrayContaining([
+          expect.objectContaining({
+            AttnTo: 'Jane Doe',
+          }),
+        ]),
+      );
+    });
+  });
+
+  it('shows validation error when mandatory fields are blank', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add Row' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(Swal.fire).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Data Validation Error',
+          icon: 'error',
+        }),
+      );
+    });
+  });
+
+  it('restores original rows on cancel', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Add Row' }));
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('1');
+  });
+
+  it('shows compose error and closes popup when compose URL is missing', async () => {
+    const popup = { location: { href: '' }, close: jest.fn() };
+    window.open = jest.fn(() => popup);
+    api.post.mockResolvedValue({ data: {} });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Send Email' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send Email' }));
+
+    await waitFor(() => {
+      expect(Swal.fire).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Error',
+          text: 'Unable to open Outlook compose window',
+        }),
+      );
+    });
+    expect(popup.close).toHaveBeenCalled();
   });
 });

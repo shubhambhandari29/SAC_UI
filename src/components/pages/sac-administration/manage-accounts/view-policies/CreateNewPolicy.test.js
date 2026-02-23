@@ -252,4 +252,115 @@ describe('CreateNewPolicy', () => {
       },
     );
   });
+
+  it('submits save through imperative handle and posts policy payload', async () => {
+    const ref = createRef();
+
+    mockLocation = {
+      pathname: '/view-policy/PK_Number=99',
+      state: { from: '/sac-view-account/CustomerNum=1234567890' },
+    };
+    mockParams = { column_name: 'PK_Number=99' };
+    mockSearchParams = { size: 0, get: () => null };
+    api.post.mockResolvedValue({ status: 200, data: { pk: 99 } });
+
+    render(<CreateNewPolicy ref={ref} />);
+
+    await waitFor(() => {
+      expect(ref.current).toBeTruthy();
+    });
+
+    let result;
+    await act(async () => {
+      result = await ref.current.submit('save');
+    });
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/sac_policies/upsert',
+      expect.objectContaining({
+        PolicyNum: 'POL1001',
+        PolMod: '01',
+      }),
+    );
+    expect(result).toBe(99);
+  });
+
+  it('submits to production and navigates back to SAC account', async () => {
+    const ref = createRef();
+
+    mockLocation = {
+      pathname: '/view-policy/PK_Number=99',
+      state: { from: '/sac-view-account/CustomerNum=1234567890' },
+    };
+    mockParams = { column_name: 'PK_Number=99' };
+    mockSearchParams = { size: 0, get: () => null };
+    api.post.mockResolvedValue({ status: 200, data: { pk: 99 } });
+
+    render(<CreateNewPolicy ref={ref} />);
+
+    await waitFor(() => {
+      expect(ref.current).toBeTruthy();
+    });
+
+    await act(async () => {
+      await ref.current.submit('submit');
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/sac-view-account/CustomerNum=1234567890', {
+      state: { from: '/view-policy/PK_Number=99' },
+      replace: true,
+    });
+  });
+
+  it('prevents duplicate policy number/mod combination during next-mod save', async () => {
+    const ref = createRef();
+
+    mockLocation = {
+      pathname: '/view-policy/PK_Number=99',
+      state: { from: '/sac-view-account/CustomerNum=1234567890' },
+    };
+    mockParams = { column_name: 'PK_Number=99' };
+    mockSearchParams = { size: 0, get: () => null };
+
+    api.get.mockImplementation((url, config) => {
+      if (url === '/sac_policies/' && config?.params?.PK_Number) {
+        return Promise.resolve(policyResponse);
+      }
+      if (url === '/sac_policies/' && config?.params?.PolicyNum) {
+        return Promise.resolve({ status: 200, data: [{ PK_Number: 123 }] });
+      }
+      if (url === '/sac_account/') {
+        return Promise.resolve({
+          status: 200,
+          data: [{ Stage: 'Admin', IsSubmitted: 0 }],
+        });
+      }
+      return Promise.resolve({ status: 200, data: [] });
+    });
+
+    render(<CreateNewPolicy ref={ref} />);
+
+    await waitFor(() => {
+      expect(ref.current).toBeTruthy();
+    });
+
+    act(() => {
+      ref.current.createNextMod();
+    });
+
+    await act(async () => {
+      await ref.current.submit('save');
+    });
+
+    expect(Swal.fire).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Data Validation Error',
+        text: 'This Policy Number and Mod combination already exists, duplicate records are not permitted',
+      }),
+    );
+    expect(api.post).not.toHaveBeenCalledWith(
+      '/sac_policies/upsert',
+      expect.anything(),
+    );
+  });
 });

@@ -4,9 +4,13 @@ import useDropdownData from '../../../hooks/useDropdownData';
 
 jest.mock('../../../hooks/useDropdownData', () => jest.fn());
 
-jest.mock('@react-pdf/renderer', () => ({
-  PDFViewer: ({ children }) => <div data-testid="pdf-viewer">{children}</div>,
-}));
+jest.mock(
+  '@react-pdf/renderer',
+  () => ({
+    PDFViewer: ({ children }) => <div data-testid="pdf-viewer">{children}</div>,
+  }),
+  { virtual: true },
+);
 
 jest.mock('../../ui/Loader', () => ({ size }) => <div>loader:{size}</div>);
 

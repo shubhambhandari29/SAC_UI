@@ -39,7 +39,13 @@ jest.mock('@mui/x-date-pickers/LocalizationProvider', () => ({
 }));
 
 jest.mock('@mui/x-date-pickers/DatePicker', () => ({
-  DatePicker: ({ label }) => <input aria-label={label} readOnly />,
+  DatePicker: ({ label, value, onChange }) => (
+    <input
+      aria-label={label}
+      value={value?.format ? value.format('YYYY-MM-DD') : value || ''}
+      onChange={(e) => onChange?.({ format: () => e.target.value })}
+    />
+  ),
 }));
 
 jest.mock('sweetalert2', () => ({
@@ -49,12 +55,24 @@ jest.mock('sweetalert2', () => ({
   },
 }));
 
-function renderWithForm() {
+function renderWithForm({
+  defaultValues = {},
+  isEnabled = () => true,
+} = {}) {
   const Wrapper = ({ children }) => {
     const methods = useForm({
       defaultValues: {
         CustomerNum: '12345',
         CustomerName: 'Acme',
+        HCMAccess: 'Enrolled',
+        ServLevel: 'SL1',
+        AccomType: 'Type A',
+        ExceptType: 'Ex A',
+        BusinessType: 'Special Account',
+        RenewLetterDt: '2025-01-05',
+        EffectiveDate: '2025-01-06',
+        DiscDate: '2025-01-07',
+        ...defaultValues,
       },
     });
     return <FormProvider {...methods}>{children}</FormProvider>;
@@ -62,7 +80,7 @@ function renderWithForm() {
 
   return render(
     <Wrapper>
-      <AccountService isEnabled={() => true} />
+      <AccountService isEnabled={isEnabled} />
     </Wrapper>,
   );
 }
@@ -145,5 +163,43 @@ describe('AccountService', () => {
         expect.objectContaining({ title: 'Error', icon: 'error' }),
       );
     });
+  });
+
+  it('opens HCM users list modal from non-create routes', async () => {
+    renderWithForm();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'HCM Users List' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'HCM Users List' }));
+
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
+    expect(screen.getByText('HcmUserListContent')).toBeInTheDocument();
+  });
+
+  it('supports date field changes through date pickers', async () => {
+    renderWithForm();
+
+    await userEvent.clear(screen.getByLabelText('Renewal Letter Sent Date'));
+    await userEvent.type(screen.getByLabelText('Renewal Letter Sent Date'), '2025-03-10');
+    await userEvent.clear(screen.getByLabelText('HCM Effective Date'));
+    await userEvent.type(screen.getByLabelText('HCM Effective Date'), '2025-03-11');
+    await userEvent.clear(screen.getByLabelText('HCM Disconnect Date'));
+    await userEvent.type(screen.getByLabelText('HCM Disconnect Date'), '2025-03-12');
+
+    expect(screen.getByLabelText('Renewal Letter Sent Date')).not.toHaveValue('2025-01-05');
+    expect(screen.getByLabelText('HCM Effective Date')).not.toHaveValue('2025-01-06');
+    expect(screen.getByLabelText('HCM Disconnect Date')).not.toHaveValue('2025-01-07');
+  });
+
+  it('renders selected dropdown/autocomplete values from form defaults', async () => {
+    renderWithForm();
+
+    expect(screen.getByText('Enrolled')).toBeInTheDocument();
+    expect(screen.getByText('Special Account')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('SL1 - 1000')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Type A')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Ex A')).toBeInTheDocument();
   });
 });

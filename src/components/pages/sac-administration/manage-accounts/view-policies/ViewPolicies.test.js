@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import ViewPolicies from './ViewPolicies';
 import api from '../../../../../api/api';
 import useDropdownData from '../../../../../hooks/useDropdownData';
+import Swal from 'sweetalert2';
 
 const mockNavigate = jest.fn();
 let mockLocation = {
@@ -39,10 +40,20 @@ jest.mock('sweetalert2', () => ({
 }));
 
 jest.mock('@mui/x-data-grid', () => ({
-  DataGrid: ({ rows, onRowSelectionModelChange, getRowId }) => (
+  DataGrid: ({ rows, columns = [], onRowSelectionModelChange, getRowId }) => (
     <div data-testid="mock-data-grid">
       <div data-testid="rows-count">{rows.length}</div>
       {rows.map((row) => {
+        columns.forEach((col) => {
+          const rawValue = row[col.field];
+          if (col.valueGetter) {
+            col.valueGetter(rawValue);
+          }
+          if (col.valueFormatter) {
+            const formattedInput = col.valueGetter ? col.valueGetter(rawValue) : rawValue;
+            col.valueFormatter(formattedInput);
+          }
+        });
         const id = getRowId(row);
         return (
           <button
@@ -88,7 +99,15 @@ describe('ViewPolicies', () => {
       pathname: '/sac-view-account/CustomerNum=1234567890',
       state: undefined,
     };
-    useDropdownData.mockReturnValue({ data: [], loading: false });
+    useDropdownData.mockReturnValue({
+      data: [
+        { DD_Type: 'PolicyType', DD_Value: 'GL', DD_SortOrder: 1 },
+        { DD_Type: 'PolicyType', DD_Value: 'WC', DD_SortOrder: 2 },
+        { DD_Type: 'PolicyStatus', DD_Value: 'Active', DD_SortOrder: 1 },
+        { DD_Type: 'PolicyStatus', DD_Value: 'Inactive', DD_SortOrder: 2 },
+      ],
+      loading: false,
+    });
     api.get.mockResolvedValue({ data: policyRows });
   });
 
@@ -260,5 +279,121 @@ describe('ViewPolicies', () => {
     expect(
       screen.queryByRole('button', { name: /Create a New Policy/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it('filters rows by policy type and policy status autocompletes', async () => {
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+    });
+
+    const policyTypeInput = screen.getByLabelText('Filter by Policy Type');
+    await userEvent.type(policyTypeInput, 'GL');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('1');
+
+    const policyStatusInput = screen.getByLabelText('Filter by Policy Status');
+    await userEvent.type(policyStatusInput, 'Active');
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('1');
+  });
+
+  it('shows error alert when fetching policies fails', async () => {
+    api.get.mockRejectedValue(new Error('load failed'));
+
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(Swal.fire).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Error',
+          icon: 'error',
+        }),
+      );
+    });
+  });
+
+  it('navigates to CCT policy route when opening a selected policy on cct path', async () => {
+    mockLocation = {
+      pathname: '/view-cct-accounts-sac/CustomerNum=1234567890',
+      state: undefined,
+    };
+
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'select-Pol-1' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'select-Pol-1' }));
+    await userEvent.click(screen.getByRole('button', { name: /Go To Selected Policy/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/cct-view-policy/PK_Number=1?CustomerNum=1234567890&CustomerName=Acme Inc',
+      {
+        state: { from: '/view-cct-accounts-sac/CustomerNum=1234567890' },
+        replace: true,
+      },
+    );
+  });
+
+  it('handles duplicate policy numbers and keeps grid usable', async () => {
+    api.get.mockResolvedValue({
+      data: [
+        {
+          PK_Number: 1,
+          PolicyNum: 'Pol-1',
+          PolMod: '01',
+          PolicyStatus: 'Active',
+          PolicyType: 'GL',
+          AccountName: 'Acme Inc',
+          InceptDate: '01-01-2025',
+          ExpDate: '01-01-2026',
+        },
+        {
+          PK_Number: 3,
+          PolicyNum: 'Pol-1',
+          PolMod: '03',
+          PolicyStatus: 'Active',
+          PolicyType: 'GL',
+          AccountName: 'Acme Inc',
+          InceptDate: '01-01-2025',
+          ExpDate: '01-01-2026',
+        },
+      ],
+    });
+
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+    });
   });
 });

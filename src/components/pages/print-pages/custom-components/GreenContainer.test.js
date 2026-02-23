@@ -28,7 +28,7 @@ jest.mock('@react-pdf/renderer', () => {
       React.createElement('img', { ...rest, style: normalizeStyle(style) }),
     StyleSheet: { create: (styles) => styles },
   };
-});
+}, { virtual: true });
 
 describe('GreenContainer', () => {
   it('renders title and child content', () => {

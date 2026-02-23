@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SacCreateNewAccount from './SacCreateNewAccount';
 import api from '../../../../../api/api';
@@ -88,13 +89,14 @@ const sacMainResponse = {
       RelatedEnt: 'No',
       DateCreated: '2025-01-01',
       DateNotif: null,
-      OnBoardDate: null,
+      OnBoardDate: '2025-01-10',
       TermDate: null,
       EffectiveDate: null,
       DiscDate: null,
       RenewLetterDt: null,
       NCMStartDt: null,
       NCMEndDt: null,
+      BranchName: 'NY',
     },
   ],
 };
@@ -188,5 +190,108 @@ describe('SacCreateNewAccount', () => {
         replace: true,
       });
     });
+  });
+
+  it('submits save via imperative handle in stepper mode', async () => {
+    const ref = createRef();
+    api.post.mockResolvedValue({ status: 200 });
+
+    render(<SacCreateNewAccount ref={ref} isStepper />);
+
+    await waitFor(() => {
+      expect(ref.current).toBeTruthy();
+    });
+
+    let result;
+    await act(async () => {
+      result = await ref.current.submit('save');
+    });
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/sac_account/upsert',
+      expect.objectContaining({
+        CustomerNum: '1234567890',
+        Stage: 'Admin',
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        CustomerNum: '1234567890',
+      }),
+    );
+  });
+
+  it('submits to production and navigates to pending items', async () => {
+    const ref = createRef();
+    api.post.mockResolvedValue({ status: 200 });
+
+    render(<SacCreateNewAccount ref={ref} />);
+
+    await waitFor(() => {
+      expect(ref.current).toBeTruthy();
+    });
+
+    await act(async () => {
+      await ref.current.submit('submit');
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/pending-items', {
+      replace: true,
+    });
+  });
+
+  it('blocks duplicate customer number for underwriter create-new flow', async () => {
+    const ref = createRef();
+    mockLocation = { pathname: '/sac-create-new-account', state: undefined };
+    mockParams = { column_name: 'CustomerNum=1234567890' };
+    useSelector.mockImplementation((selector) =>
+      selector({ auth: { user: { role: 'Underwriter' } } }),
+    );
+
+    api.get.mockImplementation((url, config) => {
+      if (url === '/sac_account/') {
+        if (config?.params?.CustomerNum === '1111111111') {
+          return Promise.resolve({
+            status: 200,
+            data: [{ CustomerNum: '1111111111' }],
+          });
+        }
+        return Promise.resolve({
+          ...sacMainResponse,
+        });
+      }
+      return Promise.resolve({ status: 200, data: [] });
+    });
+
+    render(<SacCreateNewAccount ref={ref} />);
+
+    await waitFor(() => {
+      expect(ref.current).toBeTruthy();
+    });
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Acme Inc')).toBeInTheDocument();
+    });
+
+    const accountNameInput = screen.getByLabelText(/Special Account Name/i);
+    const custNumberInput = screen.getByLabelText(/Cust #/i);
+    await userEvent.clear(accountNameInput);
+    await userEvent.type(accountNameInput, 'Duplicate Account');
+    await userEvent.clear(custNumberInput);
+    await userEvent.type(custNumberInput, '1111111111');
+
+    await act(async () => {
+      await ref.current.submit('save');
+    });
+
+    expect(api.get).toHaveBeenCalledWith('/sac_account/', {
+      params: { CustomerNum: '1111111111' },
+    });
+    expect(Swal.fire).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Data Validation Error',
+        text: 'This Customer Number already exists, duplicate records are not permitted',
+      }),
+    );
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

@@ -178,4 +178,115 @@ describe('ViewAssociatedAccounts', () => {
       );
     });
   });
+
+  it('adds a searched account and submits add payload', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const searchInput = await screen.findByLabelText('Search to add an account...');
+    await userEvent.type(searchInput, 'Search');
+    await userEvent.click(await screen.findByText('Search Account'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/sac_account_associations/add', {
+        parent_account: '12345',
+        child_account: ['30001'],
+      });
+    });
+  });
+
+  it('warns on duplicate searched account selection', async () => {
+    api.get.mockImplementation((url) => {
+      if (url.startsWith('/sac_account_associations')) {
+        return Promise.resolve({ status: 200, data: associationRows });
+      }
+      if (url === '/search_sac_account/') {
+        return Promise.resolve({
+          status: 200,
+          data: [
+            {
+              'Customer Number': '20001',
+              'Customer Name': 'Child One',
+              'Account Status': 'Active',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ status: 200, data: [] });
+    });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const searchInput = await screen.findByLabelText('Search to add an account...');
+    await userEvent.type(searchInput, 'Child');
+    const duplicateMatches = await screen.findAllByText('Child One');
+    await userEvent.click(duplicateMatches[duplicateMatches.length - 1]);
+
+    expect(Swal.fire).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Duplicate',
+        icon: 'warning',
+      }),
+    );
+  });
+
+  it('exits edit mode without API calls when nothing changed', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('cancels edit and restores original rows', async () => {
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'remove-20001' }));
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+  });
+
+  it('disables edit button for director-disabled state', async () => {
+    render(
+      <ViewAssociatedAccounts
+        accountName="Parent Account"
+        customerNum="12345"
+        disableforDirector
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit' })).toBeDisabled();
+    });
+  });
 });
