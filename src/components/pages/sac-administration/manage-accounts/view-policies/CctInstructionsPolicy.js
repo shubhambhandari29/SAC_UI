@@ -172,13 +172,19 @@ export default function CctInstructionsPolicy({ isEnabled }) {
           <Button
             type="button"
             variant="text"
+            aria-label="Clear CCT Auto policy"
             sx={{
               minWidth: "unset",
               width: "35px",
               height: "30px",
               padding: "0px",
             }}
-            onClick={() => setValue(`CCTAutoYN`, undefined)}
+            onClick={() =>
+              setValue(`CCTAutoYN`, "", {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
             disabled={!isEnabled("CCTAutoYN")}
           >
             <MdOutlineCancel size={24} />
@@ -229,13 +235,19 @@ export default function CctInstructionsPolicy({ isEnabled }) {
           <Button
             type="button"
             variant="text"
+            aria-label="Clear Rented or Hired"
             sx={{
               minWidth: "unset",
               width: "35px",
               height: "30px",
               padding: "0px",
             }}
-            onClick={() => setValue(`RentedHired`, undefined)}
+            onClick={() =>
+              setValue(`RentedHired`, "", {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
             disabled={!isEnabled("RentedHired")}
           >
             <MdOutlineCancel size={24} />
