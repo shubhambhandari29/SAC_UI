@@ -80,4 +80,35 @@ describe('ViewAffinityProgram', () => {
       );
     });
   });
+
+  it('does not call search API until a search field is selected', () => {
+    render(<ViewAffinityProgram />);
+
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it('calls search API using ProducerCode when Producer Code is selected', async () => {
+    render(<ViewAffinityProgram />);
+
+    await userEvent.click(screen.getAllByRole('combobox')[0]);
+    await userEvent.click(screen.getByRole('option', { name: 'Producer Code' }));
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/search_affinity_program/', {
+        params: { search_by: 'ProducerCode' },
+      });
+    });
+  });
+
+  it('navigates to CCT SAC list when affinity is set to No on CCT route', async () => {
+    mockLocation = { pathname: '/view-cct-accounts/affinity=true', state: undefined };
+
+    render(<ViewAffinityProgram />);
+
+    await userEvent.click(screen.getByLabelText('No'));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/view-cct-accounts/affinity=false', {
+      replace: true,
+    });
+  });
 });

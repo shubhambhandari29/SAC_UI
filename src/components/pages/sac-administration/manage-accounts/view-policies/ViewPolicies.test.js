@@ -69,6 +69,16 @@ const policyRows = [
     InceptDate: '01-01-2025',
     ExpDate: '01-01-2026',
   },
+  {
+    PK_Number: 2,
+    PolicyNum: 'Pol-2',
+    PolMod: '02',
+    PolicyStatus: 'Inactive',
+    PolicyType: 'WC',
+    AccountName: 'Acme Inc',
+    InceptDate: '01-01-2024',
+    ExpDate: '01-01-2025',
+  },
 ];
 
 describe('ViewPolicies', () => {
@@ -102,7 +112,7 @@ describe('ViewPolicies', () => {
       });
     });
 
-    expect(onDataFetch).toHaveBeenCalledWith(1);
+    expect(onDataFetch).toHaveBeenCalledWith(2);
   });
 
   it('uses callback when creating policy in stepper mode', async () => {
@@ -147,5 +157,108 @@ describe('ViewPolicies', () => {
       state: { from: '/sac-view-account/CustomerNum=1234567890' },
       replace: true,
     });
+  });
+
+  it('filters rows by policy number text input', async () => {
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+    });
+
+    await userEvent.type(screen.getByLabelText('Filter by Policy Number'), 'Pol-2');
+
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('1');
+  });
+
+  it('resets filters when Reset Filters is clicked', async () => {
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+    });
+
+    const policyFilterInput = screen.getByLabelText('Filter by Policy Number');
+    await userEvent.type(policyFilterInput, 'Pol-2');
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('1');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reset Filters' }));
+
+    expect(policyFilterInput).toHaveValue('');
+    expect(screen.getByTestId('rows-count')).toHaveTextContent('2');
+  });
+
+  it('navigates to create policy page in non-stepper mode', async () => {
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /Create a New Policy/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/create-new-policy?CustomerNum=1234567890&CustomerName=Acme Inc',
+      {
+        state: { from: '/sac-view-account/CustomerNum=1234567890' },
+        replace: true,
+      },
+    );
+  });
+
+  it('calls onViewPolicy in stepper mode when selected policy is opened', async () => {
+    const onViewPolicy = jest.fn();
+
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper
+        onCreatePolicy={jest.fn()}
+        onViewPolicy={onViewPolicy}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'select-Pol-1' })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'select-Pol-1' }));
+    await userEvent.click(screen.getByRole('button', { name: /Go To Selected Policy/i }));
+
+    expect(onViewPolicy).toHaveBeenCalledWith(1);
+  });
+
+  it('does not show create button on cct routes', () => {
+    mockLocation = {
+      pathname: '/view-cct-accounts-sac/CustomerNum=1234567890',
+      state: undefined,
+    };
+
+    render(
+      <ViewPolicies
+        CustomerNum="1234567890"
+        CustomerName="Acme Inc"
+        isStepper={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: /Create a New Policy/i }),
+    ).not.toBeInTheDocument();
   });
 });

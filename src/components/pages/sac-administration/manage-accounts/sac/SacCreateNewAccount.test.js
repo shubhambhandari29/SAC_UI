@@ -164,6 +164,17 @@ describe('SacCreateNewAccount', () => {
     });
   });
 
+  it('opens affiliates modal when View Affiliates is clicked', async () => {
+    render(<SacCreateNewAccount />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Affiliates' })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'View Affiliates' }));
+
+    expect(screen.getByText('ViewAffiliatesModalContent')).toBeInTheDocument();
+  });
+
   it('navigates back to pending items when back confirmation is accepted', async () => {
     mockLocation = { pathname: '/sac-create-new-account', state: undefined };
     mockParams = {};

@@ -225,4 +225,31 @@ describe('CreateNewPolicy', () => {
       );
     });
   });
+
+  it('navigates to create-new-policy with account context when creating a brand new policy', async () => {
+    mockLocation = {
+      pathname: '/view-policy/PK_Number=99',
+      state: { from: '/sac-view-account/CustomerNum=1234567890' },
+    };
+    mockParams = { column_name: 'PK_Number=99' };
+    mockSearchParams = { size: 0, get: () => null };
+
+    render(<CreateNewPolicy />);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('1234567890')).toBeInTheDocument();
+    });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Create a Brand New Policy' }),
+    );
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/create-new-policy?CustomerNum=1234567890&CustomerName=Acme LLC',
+      {
+        state: { from: '/sac-view-account/CustomerNum=1234567890' },
+        replace: true,
+      },
+    );
+  });
 });

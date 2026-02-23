@@ -83,4 +83,42 @@ describe('ViewSacAccount', () => {
       );
     });
   });
+
+  it('calls API with CustomerNum when Customer Number search is selected', async () => {
+    render(<ViewSacAccount />);
+
+    await userEvent.click(screen.getAllByRole('combobox')[0]);
+    await userEvent.click(screen.getByRole('option', { name: 'Customer Number' }));
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/search_sac_account/', {
+        params: { search_by: 'CustomerNum' },
+      });
+    });
+  });
+
+  it('calls API with ProducerCode when Producer Code search is selected', async () => {
+    render(<ViewSacAccount />);
+
+    await userEvent.click(screen.getAllByRole('combobox')[0]);
+    await userEvent.click(screen.getByRole('option', { name: 'Producer Code' }));
+
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith('/search_sac_account/', {
+        params: { search_by: 'ProducerCode' },
+      });
+    });
+  });
+
+  it('navigates to CCT affinity view when affinity is set to Yes on CCT route', async () => {
+    mockLocation = { pathname: '/view-cct-accounts/affinity=false', state: undefined };
+
+    render(<ViewSacAccount />);
+
+    await userEvent.click(screen.getByLabelText('Yes'));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/view-cct-accounts/affinity=true', {
+      replace: true,
+    });
+  });
 });

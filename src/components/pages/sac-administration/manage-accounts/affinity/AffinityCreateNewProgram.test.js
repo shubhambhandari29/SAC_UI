@@ -160,4 +160,26 @@ describe('AffinityCreateNewProgram', () => {
       expect(screen.getByText('ViewPolicyTypesContent')).toBeInTheDocument();
     });
   });
+
+  it('opens policy types modal when View Policy Types button is clicked', async () => {
+    render(<AffinityCreateNewProgram />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'View Policy Types' })).toBeInTheDocument();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'View Policy Types' }));
+
+    expect(screen.getByText('ViewPolicyTypesContent')).toBeInTheDocument();
+  });
+
+  it('does not render View Policy Types button on create-new path', () => {
+    mockLocation = { pathname: '/affinity-create-new-program', state: undefined };
+    mockParams = {};
+
+    render(<AffinityCreateNewProgram />);
+
+    expect(
+      screen.queryByRole('button', { name: 'View Policy Types' }),
+    ).not.toBeInTheDocument();
+  });
 });
